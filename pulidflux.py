@@ -9,14 +9,9 @@ import folder_paths
 import comfy.utils
 from comfy.ldm.flux.layers import timestep_embedding
 import comfy.model_management
-from insightface.app import FaceAnalysis
-from facexlib.parsing import init_parsing_model
-from facexlib.utils.face_restoration_helper import FaceRestoreHelper
 
 import torch.nn.functional as F
 
-from .eva_clip.constants import OPENAI_DATASET_MEAN, OPENAI_DATASET_STD
-from .encoders_flux import IDFormer, PerceiverAttentionCA
 
 INSIGHTFACE_DIR = os.path.join(folder_paths.models_dir, "insightface")
 if os.path.exists("/stable-diffusion-cache/models/insightface"):
@@ -29,11 +24,11 @@ else:
     current_paths, _ = folder_paths.folder_names_and_paths["pulid"]
 folder_paths.folder_names_and_paths["pulid"] = (current_paths, folder_paths.supported_pt_extensions)
 
-from .online_train2 import online_train
 
 class PulidFluxModel(nn.Module):
     def __init__(self):
         super().__init__()
+        from .encoders_flux import IDFormer, PerceiverAttentionCA
 
         self.double_interval = 2
         self.single_interval = 4
@@ -280,6 +275,7 @@ class PulidFluxInsightFaceLoader:
     CATEGORY = "pulid"
 
     def load_insightface(self, provider):
+        from insightface.app import FaceAnalysis
         model = FaceAnalysis(name="antelopev2", root=INSIGHTFACE_DIR, providers=[provider + 'ExecutionProvider',]) # alternative to buffalo_l
         model.prepare(ctx_id=0, det_size=(640, 640))
 
@@ -298,6 +294,7 @@ class PulidFluxEvaClipLoader:
 
     def load_eva_clip(self):
         from .eva_clip.factory import create_model_and_transforms
+        from .eva_clip.constants import OPENAI_DATASET_MEAN, OPENAI_DATASET_STD
 
         model, _, _ = create_model_and_transforms('EVA02-CLIP-L-14-336', 'eva_clip', force_custom_clip=True)
 
@@ -348,6 +345,9 @@ class ApplyPulidFlux:
         self.pulid_data_dict = None
 
     def apply_pulid_flux(self, model, pulid_flux, eva_clip, face_analysis, image, weight, start_at, end_at, prior_image=None,fusion="mean", fusion_weight_max=1.0, fusion_weight_min=0.0, train_step=1000, use_gray=True, attn_mask=None, unique_id=None):
+        from .online_train2 import online_train
+        from facexlib.utils.face_restoration_helper import FaceRestoreHelper
+        from facexlib.parsing import init_parsing_model
         device = comfy.model_management.get_torch_device()
         # Why should I care what args say, when the unet model has a different dtype?!
         # Am I missing something?!
